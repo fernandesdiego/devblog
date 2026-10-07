@@ -1,15 +1,14 @@
 ﻿---
 title: "Otimizando RAG e Redução de Tokens com Markdown Chunking e Cache no .NET"
 subtitle: "Como reduzi em mais de 80% o consumo de tokens nas consultas de políticas sem precisar de um banco vetorial"
-description: "Estratégia prática de engenharia no .NET: conversão de HTML para Markdown no adapter de infraestrutura, chunking semântico por cabeçalhos e cache com sliding expiration."
+description: "Estratégia prática de engenharia no .NET: conversão de HTML para Markdown no adapter de infraestrutura, chunking estrutural por cabeçalhos e cache com sliding expiration."
 date: 2026-10-03
+updated: 2026-10-07
 tags: [dotnet, csharp, ai, clean-architecture, performance, nuvemshop]
 category: tech
 author: "Diego Fernandes"
 draft: false
 ---
-
-
 
 Um grande desafio que encontrei (tanto de latência quanto de custo) integrando um agente de IA na plataforma da Nuvemshop, é a injeção de contexto.
 
@@ -47,7 +46,7 @@ public async Task<StorePolicies> GetPoliciesAsync(string storeId, CancellationTo
 
 ---
 
-## Chunking Semântico sem Banco Vetorial
+## Chunking Estrutural sem Banco Vetorial
 
 Adicionar um vector db (PgVector, Qdrant, Pinecone) para fazer RAG agora adiciona complexidade operacional e custo desnecessários pra esse projeto. Meu único cliente aqui é o Ecommerce da minha esposa 😁
 
@@ -88,12 +87,12 @@ public async Task<string> SearchPolicyAsync(string storeId, string query, Cancel
 
 Essa estratégia garante que:
 * Enquanto houver compradores conversando na mesma loja, as políticas permanecem na memória.
-* Quando o tráfego da loja zera, o gc limpa o cache automaticamente, mantendo o consumo de RAM sob controle na minha humilde VPS.
+* Quando o tráfego da loja zera, o IMemoryCache expira as entradas automaticamente e libera a memória, mantendo o consumo de RAM sob controle na minha humilde VPS.
 
 ---
 
 ## Resultados Práticos
 
-* **Redução de Tokens**: As respostas das tools caíram de uma média de ~2.400 tokens (HTML completo) para ~280 tokens (chunk em Markdown relevante) — uma **economia de mais de 85% em tokens**.
+* **Redução de Tokens**: As respostas das tools caíram de uma média de ~2.400 tokens (HTML completo) para ~280 tokens (chunk em Markdown relevante), gerando uma **economia de mais de 85% em tokens**.
 * **Latência**: Redução no tempo de resposta do modelo, que agora processa prompts  mais concisos.
 * **Testabilidade**: Com a separação de responsabilidades, criei testes de unidade tanto para a conversão de tags na infraestrutura quanto para os cenários de scoring no domínio.
