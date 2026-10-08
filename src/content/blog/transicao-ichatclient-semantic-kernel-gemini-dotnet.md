@@ -1,30 +1,20 @@
 ﻿---
-title: "Transição do IChatCompletionService para o Microsoft.Extensions.AI: Integrando Gemini no .NET"
-subtitle: "Como migrei para o novo padrão de IA da Microsoft e resolvi problemas de tool calling com Semantic Kernel"
-description: "Conectando o SDK oficial do Google (Google.GenAI) ao Semantic Kernel através do IChatClient do Microsoft.Extensions.AI."
+title: "Integrando Gemini com Semantic Kernel e Microsoft.Extensions.AI no .NET"
+subtitle: "Resolvendo tool calling e conectando o SDK oficial do Google"
+description: "Como conectar o SDK oficial Google.GenAI ao Semantic Kernel usando o IChatClient do .NET."
 date: 2026-10-01
-updated: 2026-10-07
+updated: 2026-10-08
 tags: [dotnet, csharp, ai, semantic-kernel, gemini, aspire]
 category: tech
 author: "Diego Fernandes"
 draft: false
 ---
 
-Historicamente, cada biblioteca de orquestração de IA no .NET (como o Semantic Kernel com seu `IChatCompletionService` ou o LangChain.NET) definia suas próprias abstrações proprietárias para serviços de chat. Quando a Microsoft lançou o **`Microsoft.Extensions.AI`**, ela introduziu o **`IChatClient`**: uma abstração no nível do runtime/BCL para todo o ecossistema .NET, unificando provedores da mesma forma que o `ILogger` e o `IHttpClientFactory` unificaram logging e chamadas HTTP.
+Quando fui integrar os modelos do Google Gemini no Semantic Kernel usando os endpoints de compatibilidade da OpenAI, tive problemas com streaming truncado e falhas de serialização nos schemas do Gemini. Os endpoints do Google compatíveis com OpenAI ainda estão em beta, então isso era esperado.
 
-O `IChatCompletionService` continua existindo e ativo dentro do Semantic Kernel, mas agora o framework oferece suporte nativo e adaptadores bidirecionais para o `IChatClient` via métodos de extensão (`.AsChatClient()` e `.AsChatCompletionService()`).
+Para resolver isso, mudei para o SDK oficial `Google.GenAI` e conectei ao Semantic Kernel através do **`Microsoft.Extensions.AI`** (`IChatClient`). 
 
-Quando fui integrar os modelos mais recentes do Google Gemini (como o `gemini-1.5-flash`) via endpoints de compatibilidade da OpenAI, comecei a esbarrar em inconsistências de payloads, streaming truncado e falhas de serialização. O que eu já deveria esperar, pois os endpoints do Google compatíveis com OpenAI ainda estão em beta.
-
-A solução definitiva foi adotar o SDK oficial `Google.GenAI` e conectá-lo ao Semantic Kernel usando a camada unificada do **`Microsoft.Extensions.AI`**.
-
----
-
-## O Problema: Conectores Legados vs SDKs Nativos
-
-O conector experimental da OpenAI no Semantic Kernel sofria para lidar com diferenças de schema e peculiaridades do protocolo v1beta do Gemini. Além disso, usar camadas de emulação de API costuma gerar falhas silenciosas na resolução de tipos e na execução de ferramentas (*tool calling* / *function calling*).
-
-Adotar o `IChatClient` permitiu usar o client oficial da Google com um pipeline de middleware unificado, desacoplando a infraestrutura do conector legado do SK.
+O `IChatCompletionService` continua existindo no Semantic Kernel, mas agora o framework tem adaptadores bidirecionais para o `IChatClient` (`.AsChatClient()` e `.AsChatCompletionService()`). Isso permitiu usar o client oficial do Google com middleware unificado.
 
 ---
 
@@ -57,7 +47,7 @@ builder.Services.AddKeyedSingleton<IChatCompletionService>("chatAgent", (sp, key
 
 ## O Ponto de Atenção: Invocação de Tools e OpenTelemetry
 
-Durante os testes de integração, me deparei com um cenário curioso: a primeira mensagem era processada com sucesso (`200 OK`), mas a partir da segunda mensagem — quando o modelo deveria invocar ferramentas de consulta no banco —, o fluxo parecia travar sem lançar exceções explícitas.
+Durante os testes de integração, me deparei com um cenário curioso: a primeira mensagem era processada com sucesso (`200 OK`), mas na segunda mensagem, quando o modelo chamava uma ferramenta de consulta no banco, o fluxo parava sem lançar exceções.
 
 Investigando os spans do **OpenTelemetry** no dashboard do **.NET Aspire**:
 
@@ -69,20 +59,18 @@ Investigando os spans do **OpenTelemetry** no dashboard do **.NET Aspire**:
 }
 ```
 
-O endpoint retornava 200, mas a execução parava.
+O endpoint retornava 200, mas a execução não prosseguia.
 
-O motivo estava na diferença entre os middlewares:
+O motivo estava no middleware de invocação:
 
-1. **`UseFunctionInvocation()` vs `UseKernelFunctionInvocation()`**: O pacote `Microsoft.Extensions.AI` puro expõe `UseFunctionInvocation()`. No entanto, quando você está utilizando o Semantic Kernel com plugins registrados no container de injeção de dependência (`IServiceProvider`), o método correto é o **`UseKernelFunctionInvocation()`** (fornecido pelo pacote de integração do Semantic Kernel). Ele garante que o pipeline passe o `IServiceProvider` (`sp`) para resolver e instanciar os `KernelPlugin` em tempo de execução.
-2. **Resolução de Spans e Logs**: Sempre registre o exporter do OpenTelemetry explicitamente no `Program.cs` para capturar diagnósticos internos e limites de cota retornados pelo SDK do Google (como `Google.GenAI.ServerError: high demand`).
+1. **`UseFunctionInvocation()` vs `UseKernelFunctionInvocation()`**: O pacote `Microsoft.Extensions.AI` puro expõe `UseFunctionInvocation()`. Mas quando você usa o Semantic Kernel com plugins registrados no container (`IServiceProvider`), o método correto é o **`UseKernelFunctionInvocation()`**. Ele garante que o pipeline receba o `IServiceProvider` (`sp`) para resolver e instanciar os `KernelPlugin` em tempo de execução.
+2. **Resolução de Spans e Logs**: Registre o exporter do OpenTelemetry explicitamente no `Program.cs` para capturar diagnósticos internos e limites de cota retornados pelo SDK do Google (como `Google.GenAI.ServerError: high demand`).
 
 ---
 
 ## Conclusão
 
-A chegada do `Microsoft.Extensions.AI` traz uma maturidade enorme para o ecossistema .NET:
-- **Padrão único de mercado**: Provedores agora podem focar em implementar `IChatClient` uma única vez.
-- **Interoperabilidade**: O Semantic Kernel continua sendo um excelente orquestrador, mas sem precisar manter dezenas de conectores proprietários para cada provedor.
-- **Flexibilidade**: Trocar ou combinar modelos de diferentes provedores no mesmo backend virou uma questão de injeção de dependência.
-
-Se eu fosse começar um projeto com IA em .NET hoje, adotaria o `Microsoft.Extensions.AI` desde o dia um.
+Essa mudança simplificou a integração:
+- Dá para usar o SDK oficial do provedor sem depender de conectores de terceiros.
+- O Semantic Kernel continua funcionando como orquestrador através dos adaptadores de `IChatClient`.
+- Trocar ou combinar modelos no mesmo backend virou apenas uma questão de injeção de dependência.
