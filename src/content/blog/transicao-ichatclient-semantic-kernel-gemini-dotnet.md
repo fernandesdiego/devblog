@@ -1,7 +1,7 @@
 ﻿---
-title: "Da Transição do IChatCompletionService para o Microsoft.Extensions.AI: Integrando Gemini no .NET"
+title: "Transição do IChatCompletionService para o Microsoft.Extensions.AI: Integrando Gemini no .NET"
 subtitle: "Como migrei para o novo padrão de IA da Microsoft e resolvi problemas de tool calling com Semantic Kernel"
-description: "A evolução do ecossistema de IA no .NET: conectando o SDK oficial do Google (Google.GenAI) ao Semantic Kernel através do IChatClient do Microsoft.Extensions.AI."
+description: "Conectando o SDK oficial do Google (Google.GenAI) ao Semantic Kernel através do IChatClient do Microsoft.Extensions.AI."
 date: 2026-10-01
 updated: 2026-10-07
 tags: [dotnet, csharp, ai, semantic-kernel, gemini, aspire]

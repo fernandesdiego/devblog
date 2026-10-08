@@ -1,7 +1,7 @@
 ﻿---
 title: "Estratégia de CI/CD e Deploy para Arquitetura Multi-Repo: .NET API, Dashboard e Widget"
-subtitle: "Como estruturei a entrega contínua entre três repositórios independentes em uma VPS e Cloudflare"
-description: "Decisões práticas sobre monorepo vs multi-repo, roteamento de APIs com Cloudflare e pipelines de automação para um ecossistema com API .NET e Web Components."
+subtitle: "Como estruturei a entrega entre três repositórios independentes em uma VPS e Cloudflare"
+description: "Decisões sobre monorepo vs multi-repo, roteamento de APIs com Cloudflare e pipelines de automação para um ecossistema com API .NET e Web Components."
 date: 2026-10-01
 tags: [devops, cicd, dotnet, cloudflare, arquitetura, vps]
 category: tech
