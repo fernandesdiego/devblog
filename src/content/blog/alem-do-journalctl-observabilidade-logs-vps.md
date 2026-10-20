@@ -3,14 +3,14 @@ title: "Estratégia de Observabilidade e Logs"
 subtitle: "Tracing de IA do .NET Aspire para produção na VPS"
 description: "Grafana Cloud (Loki + Tempo) com Alloy e OpenTelemetry no .NET 8."
 date: 2026-10-04
-updated: 2026-10-08
+updated: 2026-10-18
 tags: [devops, linux, dotnet, observability, logs, vps, grafana, opentelemetry, ai]
 category: tech
 author: "Diego Fernandes"
 draft: false
 ---
 
-Embora o `journalctl` resolva em casos mais simples, navegar por milhares de linhas de JSON, rastrear stack traces multilinhas e filtrar requisições simultâneas direto no terminal não foi muito produtivo pra mim.
+Embora o journalctl resolva em casos mais simples, navegar por milhares de linhas de JSON, rastrear stack traces multilinhas e filtrar requisições simultâneas direto no terminal não foi muito produtivo pra mim.
 
 Hoje avaliei alternativas para transformar a observabilidade da minha aplicação sem sobrecarregar a memória da minha VPS, que ja é pouca 😪
 
@@ -25,21 +25,21 @@ O `journalctl` é como um agregador de logs do sistema, e não exatamente uma fe
 
 ---
 
-### A Escolha Definitiva: Grafana Cloud
+## A Escolha Definitiva: Grafana Cloud
 
-Como desenvolvo isso tudo sozinho e rodo os serviços em um servidor com 4GB de RAM, instalar uma stack pesada como ElasticSearch/Kibana (ELK) está fora de questão.
+Como desenvolvo isso sozinho e rodo os serviços em um servidor com 4GB de RAM, instalar uma stack pesada como ElasticSearch/Kibana (ELK) está fora de questão.
 
-No fim das contas, a solução que eu implementei e que resolveu o problema foi usar o **[Grafana Cloud](https://grafana.com/products/cloud/)**.
+A solução que implementei e que resolveu o problema foi usar o **[Grafana Cloud](https://grafana.com/products/cloud/)**.
 
-O plano gratuito deles é bem generoso, com **50 GB de logs por mês no Loki** e suporte a **Traces distribuídos no Tempo**, sem ocupar a memória da VPS rodando banco de dados de log local.
+O plano gratuito deles atende muito bem, com **50 GB de logs por mês no Loki** e suporte a **Traces distribuídos no Tempo**, sem ocupar a memória da VPS rodando banco de dados de log local.
 
-#### A. Coletando Logs da VPS com Grafana Alloy
+### 1. Coletando Logs da VPS com Grafana Alloy
 
-Para enviar os logs da API sem mexer no código, instalei o **Grafana Alloy** rodando como serviço:
+Para enviar os logs da API sem mexer no código, instalei o **Grafana Alloy** rodando como serviço no Linux.
 
-O Alloy se conecta diretamente ao `journald` e encaminha o `stdout`/`stderr` da aplicação em tempo real para o Loki:
+O Alloy se conecta diretamente ao journald e encaminha o stdout/stderr da aplicação em tempo real para o Loki:
 
-```text
+`	ext
 // /etc/alloy/config.alloy
 loki.source.journal "journald" {
   max_age = "12h"
@@ -59,33 +59,33 @@ loki.write "grafana_cloud" {
     }
   }
 }
-```
+`
 
 Isso me permite rodar queries em **LogQL** direto no navegador:
 
-```text
+`	ext
 {host="vps-backend"} | json | level = "Error" and durationMs > 500
-```
+`
 
 ---
 
-#### B. Tracing de IA: Trazendo a Experiência do .NET Aspire para Produção
+### 2. Tracing de IA: Trazendo a Experiência do .NET Aspire para Produção
 
-Durante o desenvolvimento local no Visual Studio, eu usava o **.NET Aspire** que tem uma tela excelente que formata as requisições de IA do Semantic Kernel como se fossem mensagens de chat, mostrando:
-- O prompt enviado para o Gemini/OpenAI
+Durante o desenvolvimento local no Visual Studio, eu utilizava o **.NET Aspire**, que possui um dashboard excelente que formata as requisições de IA do Semantic Kernel como conversas de chat, exibindo:
+- O prompt enviado para o modelo
 - A resposta gerada
-- As ferramentas (*tool calls*) que o modelo decidiu executar
+- As ferramentas (*tool calls*) executadas
 - A contagem exata de tokens de entrada e saída
 
-Ao subir a API para a VPS Linux de produção, eu não tinha mais o dashboard do Aspire rodando. Então a solução foi o **OpenTelemetry** conectado ao **Grafana Tempo**.
+Ao subir a API para a VPS Linux de produção, eu não tinha mais o dashboard do Aspire rodando. A solução foi o **OpenTelemetry** conectado ao **Grafana Tempo**.
 
-Nos serviços da API, precisamos ativar duas flags para que os diagnósticos de IA não sejam omitidos:
+Nos serviços da API, precisamos ativar as flags de diagnóstico:
 
-```csharp
+`csharp
 // 1. Habilita diagnósticos detalhados de IA nos spans do Semantic Kernel
 AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
 
-// 2. O mesmo pra OpenAI
+// 2. Habilita telemetria no SDK da OpenAI
 AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
 
 builder.Services.AddOpenTelemetry()
@@ -102,25 +102,24 @@ builder.Services.AddOpenTelemetry()
                 otlp.Headers = $"Authorization=Bearer {builder.Configuration["Grafana:ApiKey"]}";
             });
     });
-```
-
-Ao abrir o **Explore > Tempo** no Grafana Cloud e inspecionar uma requisição de chat:
-* Os spans de `SemanticKernel.InvokeFunction` ou `chat.completions` aparecem na linha do tempo.
-* Clicando na aba **Attributes** do span, vejo os atributos `gen_ai.prompt`, `gen_ai.completion`, `gen_ai.usage.input_tokens` e os JSONs brutos de cada tool executada pelo agente.
-* E com a correlação de `TraceId` nos logs do Loki, um clique no log de erro me leva direto para o trace com a conversa completa.
+`
 
 ---
 
-#### C. Controlando o Nível de Logs no systemd
+### 3. A Pegadinha dos Prompts no Grafana Tempo: Span Events vs Attributes
 
-Para não lotar a cota gratuita do Grafana com logs de `Debug` desnecessários em produção, ajustei as variáveis de ambiente no arquivo `.env` do serviço:
+Ao testar os traces no **Grafana Tempo**, eu conseguia visualizar os spans e o tempo de execução, mas os textos das conversas e os prompts não apareciam na aba principal de atributos.
 
-```text
-# Configuração de Logs em Produção
-Logging__LogLevel__Default=Information
-Logging__LogLevel__Microsoft.AspNetCore=Warning
-```
+Investigando o comportamento dos SDKs, descobri alguns detalhes:
+
+1. **Span Events vs Attributes**: Seguindo a convenção do OpenTelemetry para GenAI, o Semantic Kernel não grava o texto dos prompts como tags/atributos do span. Ele emite como **Span Events** (especificamente gen_ai.content.prompt e gen_ai.content.completion). No Grafana Tempo, esses eventos não ficam na lista lateral de Attributes, mas em uma aba colapsada chamada **Events** ou **Logs** dentro do span inspecionado.
+2. **Proteção de PII no SDK da OpenAI**: O cliente oficial OpenAI v2 omite o corpo de prompts e completions dos traces para evitar vazamento de dados sensíveis. Ele grava apenas métricas de modelo, duração e contagem de tokens (gen_ai.usage.input_tokens).
+3. **Microsoft.Extensions.AI (Google Gemini)**: Quando utilizo o cliente do Google via Microsoft.Extensions.AI, é obrigatório configurar explicitamente a captura de dados sensíveis no pipeline:
+   `csharp
+   .UseOpenTelemetry(configure: opt => opt.EnableSensitiveData = true)
+   `
+4. **Contexto de Negócio com ActivitySource Próprio**: Os requests de IA frequentemente rodam em background tasks. Quando o endpoint responde 200/202, o trace raiz se encerra. Para não perder o contexto da conversa, envolvi o fluxo em um ActivitySource próprio da aplicação, adicionando ao span conversation.id, store.id e workspace.id.
 
 ---
 
-Com esse setup consegui manter em produção na VPS o "mesmo nível" de detalhe que eu tinha localmente no Aspire, mantendo o consumo de memória da VPS em níveis mínimos e custo zero.
+Com esse setup, consigo monitorar em produção na VPS o mesmo nível de detalhe que eu tinha localmente no Aspire, mantendo a correlação de TraceId entre o Loki e o Tempo com consumo mínimo de recurso.
