@@ -9,7 +9,7 @@ author: "Diego Fernandes"
 draft: false
 ---
 
-O meu projeto depende de integrações externas da Nuvemshop (para autenticação OAuth, webhooks e injeção do widget) e do Stripe (para assinaturas). Toda vez que eu precisava testar um fluxo na minha máquina, eu tinha que acessar o console de parceiros da Nuvemshop e alterar manualmente as URLs de redirecionamento para localhost. Depois do teste, precisava lembrar de desfazer tudo para que o ambiente da VPS continuasse acessível para quem estivesse testando.
+O meu projeto depende de integraçõestexternas da Nuvemshop (para autenticação OAuth, webhooks e injeção do widget) e do Stripe (para assinaturas). Toda vez que eu precisava testar um fluxo na minha máquina, eu tinha que acessar o console de parceiros da Nuvemshop e alterar manualmente as URLs de redirecionamento para localhost. Depois do teste, precisava lembrar de desfazer tudo para que o ambiente da VPS continuasse acessível para quem estivesse testando.
 
 Além disso, com a estrutura dividida em vários repositórios, manter essas URLs manualmente era questão de tempo pra acontecer algum problema. Então decidi estruturar a separação desses ambientes.
 
@@ -35,7 +35,7 @@ No backend, utilizei a separação nativa do ASP.NET Core:
 - ppsettings.Development.json: configurado com o ClientId e o ClientSecret do app de testes local.
 - ppsettings.Production.json: mantido na VPS com as credenciais do app principal.
 
-`json
+```json
 // appsettings.Development.json
 {
   "Nuvemshop": {
@@ -44,13 +44,13 @@ No backend, utilizei a separação nativa do ASP.NET Core:
     "RedirectUrl": "http://localhost:5173/oauth/nuvemshop/callback"
   }
 }
-`
+```
 
 ### Frontends (React, Landing e Widget)
 Nos projetos em Vite e Astro, criei arquivos .env.development e .env.production.
 
 No dashboard em React:
-`ini
+```ini
 # .env.development
 VITE_API_URL=https://localhost:7129
 VITE_WIDGET_URL=http://localhost:4173
@@ -58,7 +58,7 @@ VITE_WIDGET_URL=http://localhost:4173
 # .env.production
 VITE_API_URL=https://app.meudominio.com
 VITE_WIDGET_URL=https://widget-cfp.pages.dev
-`
+```
 
 Quando rodo pm run dev, o Vite pega automaticamente o arquivo de dev e aponta para a API e o widget locais. No deploy pelo GitHub Actions (que descrevi no post sobre [minha estratégia de CI/CD na VPS](/blog/estrategia-deploy-cicd-multi-repo-dotnet-vps)), o build gera o pacote estático com as variáveis de produção.
 
@@ -72,9 +72,9 @@ Para evitar isso:
 - O webhook cadastrado no dashboard do Stripe aponta exclusivamente para a URL pública da VPS.
 - No desenvolvimento local, não registro endpoints de webhook no painel web. Em vez disso, utilizo a **Stripe CLI** para encaminhar os eventos sob demanda:
 
-`bash
+```bash
 stripe listen --forward-to localhost:7129/api/billing/webhook
-`
+```
 
 A CLI do Stripe gera um webhook secret exclusivo para a sessão do terminal. Eu coloco esse secret no meu appsettings.Development.json. Dessa forma, os eventos gerados pelos meus testes locais são capturados apenas pelo meu processo local, sem interferir no processamento da VPS.
 

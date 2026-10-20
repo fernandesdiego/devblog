@@ -25,7 +25,7 @@ Modelos de linguagem adoram completar padrões. Se um cliente pede a recomendaç
 
 Para eliminar essa alucinação, atualizei o modelo de leitura de catálogo na minha API para expor explicitamente a URL canônica sincronizada da plataforma:
 
-`csharp
+```csharp
 public record ProductDto(
     string Id,
     string Name,
@@ -33,16 +33,16 @@ public record ProductDto(
     string? CanonicalUrl,
     DateTimeOffset? UpdatedAtUtc
 );
-`
+```
 
 Em seguida, adicionei uma regra mandatória no SystemPromptBuilder:
 
-`markdown
+```markdown
 - Strict Link & URL Rules: Never fabricate, synthesize, or guess links or URLs. 
   Only share product links if an exact url property is provided by the tool execution result. 
   If no URL is available in the tool data, provide the exact product name and instruct 
   the customer to search for it on the store.
-`
+```
 
 Com essa instrução, se o objeto retornado pela ferramenta de busca de produtos contiver a URL canônica, o agente envia o link real. Caso contrário, ele cita o nome exato do produto e instrui o cliente a buscar na loja, sem inventar links.
 
@@ -56,24 +56,24 @@ A ferramenta SearchCustomerOrders exige o e-mail do cliente para localizar compr
 
 Ajustei o System Prompt com uma precondição de bloqueio prévio:
 
-`markdown
+```markdown
 - Order Tracking Precondition: Never call SearchCustomerOrders with guessed, placeholder, 
   or synthetic email addresses (e.g., '@example.com' or dummy names). 
   If the customer has not explicitly provided their email address in the current conversation, 
   you MUST ask the customer for their email first before invoking any order lookup tool.
-`
+```
 
 O resultado foi imediato: o agente agora pausa a intenção de busca, solicita educadamente o e-mail ao cliente e só dispara a requisição quando possui um dado real, reduzindo o uso da API e evitou respostas falsas de "pedido não encontrado".
 
 ---
 
-## 3. Handoff Proativo e Síntese de Contexto
+## 3. Handoff Proativo e Síntese de Conttexto
 
 Um agente de atendimento eficiente precisa saber a hora de sair do caminho. Quando um cliente faz perguntas complexas sobre negociação, fretes atípicos ou reclamações, insistir em respostas automáticas desgasta o relacionamento.
 
 Reestruturei o procedimento de transição com duas decisões de design:
 
 1. **Sugestão proativa**: Em vez de esperar o cliente se irritar e exigir um humano, o agente identifica a limitação e oferece a transferência ativamente ("Gostaria que eu te transferisse para um atendente humano para te ajudar com isso?").
-2. **Síntese automática do motivo**: O agente é proibido de perguntar "qual o motivo da transferência?" se o contexto já estiver evidente na conversa. Ele mesmo resume o problema e passa o parâmetro sintetizado para a ferramenta de transferência:
+2. **Síntese automática do motivo**: O agente é proibido de perguntar "qual o motivo da transferência?" se o conttexto já estiver evidente na conversa. Ele mesmo resume o problema e passa o parâmetro sintetizado para a ferramenta de transferência:
 
 Essa abordagem elimina perguntas repetitivas e entrega para o atendente humano no painel administrativo um resumo claro do motivo da transferência antes mesmo do atendimento começar.

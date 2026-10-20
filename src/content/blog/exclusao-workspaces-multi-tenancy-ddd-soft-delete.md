@@ -15,11 +15,11 @@ No produto que estou trabalhando, deletar o tenant principal afeta faturamento, 
 
 ## 1. O Risco de Colisão de Índices e Vazamento de Dados
 
-A minha aplicação integra lojas virtuais externas (como a Nuvemshop). No banco de dados, a tabela de conexões possui um índice de unicidade composto:
+A minha aplicação integra lojas virtuaistexternas (como a Nuvemshop). No banco de dados, a tabela de conexões possui um índice de unicidade composto:
 
-`sql
-UNIQUE (platform, external_id)
-`
+```sql
+UNIQUE (platform,texternal_id)
+```
 
 Se eu apenas marcasse o workspace e a loja como deletados via soft delete, o registro de conexão continuaria existindo na tabela. Caso o lojista tentasse conectar essa mesma loja em outro workspace no futuro (ou se a loja fosse vendida para outro comerciante), a tentativa de conexão falharia por violação de chave única.
 
@@ -27,7 +27,7 @@ Pior ainda: se eu permitisse reaproveitar o registro antigo da loja, o novo prop
 
 Para resolver isso, fui diretamente no aggregate root Store:
 
-`csharp
+```csharp
 public class Store : AggregateRoot
 {
     public StoreConnection? StoreConnection { get; private set; }
@@ -45,9 +45,9 @@ public class Store : AggregateRoot
         Disconnect();
     }
 }
-`
+```
 
-Ao chamar store.Disconnect(), removemos o registro de StoreConnection, liberando a chave (platform, external_id). Ao mesmo tempo, a entidade Store e suas mensagens históricas permanecem arquivadas no workspace excluído para fins de auditoria, garantindo que qualquer conexão futura crie uma loja totalmente limpa.
+Ao chamar store.Disconnect(), removemos o registro de StoreConnection, liberando a chave (platform,texternal_id). Ao mesmo tempo, a entidade Store e suas mensagens históricas permanecem arquivadas no workspace excluído para fins de auditoria, garantindo que qualquer conexão futura crie uma loja totalmente limpa.
 
 ---
 
@@ -60,7 +60,7 @@ Se a contagem considerasse todos os workspaces, ele conseguiria deletar o seu ú
 
 Ajustei a regra no domínio e no repositório para validar exclusivamente os workspaces próprios:
 
-`csharp
+```csharp
 var ownedWorkspacesCount = await _workspaceRepository
     .CountOwnedWorkspacesByUserIdAsync(currentUserId.Value, ct);
 
@@ -68,7 +68,7 @@ if (ownedWorkspacesCount <= 1)
 {
     return Result.Failure(WorkspaceErrors.CannotDeleteLastWorkspace);
 }
-`
+```
 
 Dessa forma, o usuário é impedido de deletar o seu último workspace onde tem papel de Owner.
 
@@ -80,12 +80,12 @@ Outra decisão foi como lidar com cobranças recorrentes. Se o usuário deletar 
 
 A abordagem adotada foi exigir o pré-requisito explícito:
 
-`csharp
+```csharp
 if (workspace.Subscription?.IsActive() == true)
 {
     return Result.Failure(WorkspaceErrors.ActiveSubscriptionPreventsDeletion);
 }
-`
+```
 
 Se houver assinatura ativa, a API recusa a exclusão retornando 409 Conflict. O proprietário precisa cancelar a renovação no portal de faturamento antes de encerrar o workspace.
 
@@ -97,7 +97,7 @@ Quando o workspace é deletado, qualquer conexão aberta de Server-Sent Events (
 
 Em vez de chamar o gerenciador de conexões dentro do command handler, desacoplei essa responsabilidade utilizando Domain Events:
 
-`csharp
+```csharp
 // No agregado Workspace
 public void SoftDelete()
 {
@@ -106,11 +106,11 @@ public void SoftDelete()
     
     AddDomainEvent(new WorkspaceDeletedDomainEvent(Id));
 }
-`
+```
 
 O evento é capturado pelo handler na camada de aplicação:
 
-`csharp
+```csharp
 public class WorkspaceDeletedDomainEventHandler 
     : INotificationHandler<WorkspaceDeletedDomainEvent>
 {
@@ -127,7 +127,7 @@ public class WorkspaceDeletedDomainEventHandler
         return Task.CompletedTask;
     }
 }
-`
+```
 
 Isso mantém o handler focado apenas na persistência e regras de negócio, delegando os efeitos colaterais para a infra.
 
@@ -137,8 +137,8 @@ Isso mantém o handler focado apenas na persistência e regras de negócio, dele
 
 Para evitar exclusões acidentais, exijo que o usuário confirme o nome exato do workspace.
 
-`	ext
+```text
 DELETE /api/workspaces/{workspaceId}?confirmName=Meu%20Workspace
-`
+```
 
 Muitos proxies reversos e CDNs (como Cloudflare, que uso na frente da minha VPS, conforme detalhei no post sobre [minha estratégia de CI/CD e NGINX](/blog/estrategia-deploy-cicd-multi-repo-dotnet-vps)) descartam o body dos DELETE por padrão. O query parameter garante que a confirmação vai ser recebida.

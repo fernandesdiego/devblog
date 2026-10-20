@@ -39,7 +39,7 @@ Para enviar os logs da API sem mexer no código, instalei o **Grafana Alloy** ro
 
 O Alloy se conecta diretamente ao journald e encaminha o stdout/stderr da aplicação em tempo real para o Loki:
 
-`	ext
+```text
 // /etc/alloy/config.alloy
 loki.source.journal "journald" {
   max_age = "12h"
@@ -59,13 +59,13 @@ loki.write "grafana_cloud" {
     }
   }
 }
-`
+```
 
 Isso me permite rodar queries em **LogQL** direto no navegador:
 
-`	ext
+```text
 {host="vps-backend"} | json | level = "Error" and durationMs > 500
-`
+```
 
 ---
 
@@ -81,12 +81,12 @@ Ao subir a API para a VPS Linux de produção, eu não tinha mais o dashboard do
 
 Nos serviços da API, precisamos ativar as flags de diagnóstico:
 
-`csharp
+```csharp
 // 1. Habilita diagnósticos detalhados de IA nos spans do Semantic Kernel
-AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+AppConttext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
 
 // 2. Habilita telemetria no SDK da OpenAI
-AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
+AppConttext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
 
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
@@ -102,23 +102,23 @@ builder.Services.AddOpenTelemetry()
                 otlp.Headers = $"Authorization=Bearer {builder.Configuration["Grafana:ApiKey"]}";
             });
     });
-`
+```
 
 ---
 
 ### 3. A Pegadinha dos Prompts no Grafana Tempo: Span Events vs Attributes
 
-Ao testar os traces no **Grafana Tempo**, eu conseguia visualizar os spans e o tempo de execução, mas os textos das conversas e os prompts não apareciam na aba principal de atributos.
+Ao testar os traces no **Grafana Tempo**, eu conseguia visualizar os spans e o tempo de execução, mas os ttextos das conversas e os prompts não apareciam na aba principal de atributos.
 
 Investigando o comportamento dos SDKs, descobri alguns detalhes:
 
-1. **Span Events vs Attributes**: Seguindo a convenção do OpenTelemetry para GenAI, o Semantic Kernel não grava o texto dos prompts como tags/atributos do span. Ele emite como **Span Events** (especificamente gen_ai.content.prompt e gen_ai.content.completion). No Grafana Tempo, esses eventos não ficam na lista lateral de Attributes, mas em uma aba colapsada chamada **Events** ou **Logs** dentro do span inspecionado.
+1. **Span Events vs Attributes**: Seguindo a convenção do OpenTelemetry para GenAI, o Semantic Kernel não grava o ttexto dos prompts como tags/atributos do span. Ele emite como **Span Events** (especificamente gen_ai.content.prompt e gen_ai.content.completion). No Grafana Tempo, esses eventos não ficam na lista lateral de Attributes, mas em uma aba colapsada chamada **Events** ou **Logs** dentro do span inspecionado.
 2. **Proteção de PII no SDK da OpenAI**: O cliente oficial OpenAI v2 omite o corpo de prompts e completions dos traces para evitar vazamento de dados sensíveis. Ele grava apenas métricas de modelo, duração e contagem de tokens (gen_ai.usage.input_tokens).
 3. **Microsoft.Extensions.AI (Google Gemini)**: Quando utilizo o cliente do Google via Microsoft.Extensions.AI, é obrigatório configurar explicitamente a captura de dados sensíveis no pipeline:
-   `csharp
+   ```csharp
    .UseOpenTelemetry(configure: opt => opt.EnableSensitiveData = true)
-   `
-4. **Contexto de Negócio com ActivitySource Próprio**: Os requests de IA frequentemente rodam em background tasks. Quando o endpoint responde 200/202, o trace raiz se encerra. Para não perder o contexto da conversa, envolvi o fluxo em um ActivitySource próprio da aplicação, adicionando ao span conversation.id, store.id e workspace.id.
+   ```
+4. **Conttexto de Negócio com ActivitySource Próprio**: Os requests de IA frequentemente rodam em background tasks. Quando o endpoint responde 200/202, o trace raiz se encerra. Para não perder o conttexto da conversa, envolvi o fluxo em um ActivitySource próprio da aplicação, adicionando ao span conversation.id, store.id e workspace.id.
 
 ---
 

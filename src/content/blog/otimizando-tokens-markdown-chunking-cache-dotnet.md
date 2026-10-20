@@ -10,9 +10,9 @@ author: "Diego Fernandes"
 draft: false
 ---
 
-Um desafio que encontrei (tanto de latência quanto de custo) integrando um agente de IA na plataforma da Nuvemshop, é a injeção de contexto.
+Um desafio que encontrei (tanto de latência quanto de custo) integrando um agente de IA na plataforma da Nuvemshop, é a injeção de conttexto.
 
-As lojas possuem páginas extensas de termos de uso, políticas de troca, devolução e regras de frete. A API da Nuvemshop entrega todo esse conteúdo em **HTML bruto**.
+As lojas possuem páginastextensas de termos de uso, políticas de troca, devolução e regras de frete. A API da Nuvemshop entrega todo esse conteúdo em **HTML bruto**.
 
 Se eu simplesmente enviasse o HTML retornado da API para a tool de busca do agente, consumiria milhares de tokens desnecessários com tags como `<div>`, `<p>`, `<span>` e estilos embutidos, além de poluir a atenção do modelo.
 
@@ -23,12 +23,12 @@ Hoje, reestruturei essa funcionalidade na minha API para resolver o problema de 
 ## O Desafio Arquitetural e Clean Architecture
 
 Seguindo os princípios de **Clean Architecture e DDD**:
-- O formato HTML é um detalhe de entrega específico da API externa da Nuvemshop.
-- A camada de **Application** não deve saber se a política veio em HTML, JSON ou texto puro.
+- O formato HTML é um detalhe de entrega específico da APItexterna da Nuvemshop.
+- A camada de **Application** não deve saber se a política veio em HTML, JSON ou ttexto puro.
 - Portanto, a biblioteca de conversão (ReverseMarkdown) foi isolada na camada de **Infra**, entregando para a aplicação um modelo limpo em Markdown.
 
-`csharp
-// Infrastructure: Conversão isolada no Adapter externo
+```csharp
+// Infrastructure: Conversão isolada no Adaptertexterno
 public async Task<StorePolicies> GetPoliciesAsync(string storeId, CancellationToken ct = default)
 {
     var rawHtmlPolicies = await _httpClient.GetFromJsonAsync<NuvemshopRawPolicies>($"/v1/{storeId}/policies", ct);
@@ -40,7 +40,7 @@ public async Task<StorePolicies> GetPoliciesAsync(string storeId, CancellationTo
         ShippingPolicy: converter.Convert(rawHtmlPolicies.ShippingHtml)
     );
 }
-`
+```
 
 ---
 
@@ -51,8 +51,8 @@ Adicionar um banco vetorial (PgVector, Qdrant, Pinecone) para fazer RAG neste es
 Implementei uma abordagem baseada em regras léxicas e hierarquia estrutural:
 
 1. **Quebra por Cabeçalhos**: O PolicyChunkingService divide o Markdown em seções baseadas em títulos (#, ##, ###).
-2. **Normalização em Português**: O PortugueseTextNormalizer remove acentuações e pontuações, permitindo matching flexível em português.
-3. **Scoring Ponderado**: O termo pesquisado pontua mais alto se coincidir com o título da seção (peso 3x) do que com o corpo do texto (peso 1x).
+2. **Normalização em Português**: O PortugueseTtextNormalizer remove acentuações e pontuações, permitindo matching flexível em português.
+3. **Scoring Ponderado**: O termo pesquisado pontua mais alto se coincidir com o título da seção (peso 3x) do que com o corpo do ttexto (peso 1x).
 4. **Retorno Enxuto**: Apenas a seção relevante com limite de caracteres é retornada para o agente.
 
 ---
@@ -63,7 +63,7 @@ Como estamos falando de uma aplicação stateless, não tem como saber com preci
 
 Para evitar chamadas HTTP repetitivas à API da Nuvemshop a cada mensagem do mesmo comprador, utilizei o IMemoryCache do .NET com **Sliding Expiration**:
 
-`csharp
+```csharp
 public async Task<string> SearchPolicyAsync(string storeId, string query, CancellationToken ct = default)
 {
     var cacheKey = $"policies_{storeId}";
@@ -81,7 +81,7 @@ public async Task<string> SearchPolicyAsync(string storeId, string query, Cancel
 
     return _searchEngine.Search(policies, query);
 }
-`
+```
 
 Essa estratégia garante que:
 * Enquanto houver compradores conversando na mesma loja, as políticas permanecem na memória.

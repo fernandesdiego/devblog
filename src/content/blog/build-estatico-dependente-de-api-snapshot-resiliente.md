@@ -14,7 +14,7 @@ Construindo a landing page e a página de preços do meu produto usando **Astro*
 
 No começo, fui pelo caminho do **fail-fast radical**: se a API de planos não respondesse durante o build, eu deixava o deploy quebrar propositalmente. A ideia era evitar a todo custo publicar planos desatualizados na página de vendas.
 
-Porém, na prática essa decisão poderia me causar problemas. Um timeout temporário na API iria travar deploys de marketing, SEO ou textos que não tinham nada a ver com preços.
+Porém, na prática essa decisão poderia me causar problemas. Um timeout temporário na API iria travar deploys de marketing, SEO ou ttextos que não tinham nada a ver com preços.
 
 ---
 
@@ -26,7 +26,7 @@ Na landing page em Astro, eu consumo esse endpoint no build time para gerar o HT
 
 O problema é que acoplar o build estático a um endpoint ao vivo cria uma dependência:
 
-```text
+```ttext
 [Deploy no Cloudflare Pages] ──> [Bate na API .NET] ──> [API oscila / Timeout] ──> [Build quebrava]
 ```
 

@@ -1,7 +1,7 @@
 ﻿---
 title: "Otimizando Core Web Vitals no Astro"
 subtitle: "Como reduzi o LCP e subi a nota no PageSpeed Insights"
-description: "Eliminando render-blocking de fontes externas e melhorando o carregamento no Astro."
+description: "Eliminando render-blocking de fontestexternas e melhorando o carregamento no Astro."
 date: 2026-10-06
 updated: 2026-10-08
 tags: [astro, performance, web-vitals, pagespeed, seo, frontend]
@@ -18,13 +18,13 @@ Ao rodar a primeira análise da minha landing page em Astro no Google PageSpeed 
 
 No relatório do Lighthouse, o gargalo estava nas requisições bloqueantes de renderização:
 
-```text
+```ttext
 Render-blocking requests:
 - Google Fonts CSS (fonts.googleapis.com): 400 ms
 - Material Symbols CSS: 200 ms
 ```
 
-Mesmo usando Astro, importar fontes externas diretamente no `<head>` com tags normais travava a renderização inicial da página.
+Mesmo usando Astro, importar fontestexternas diretamente no `<head>` com tags normais travava a renderização inicial da página.
 
 ---
 
@@ -59,7 +59,7 @@ Mudei para pré-conexão com `preconnect` e carregamento assíncrono com `preloa
 
 Importar a biblioteca inteira de `Material Symbols Outlined` via CDN para usar apenas 5 ícones na página adicionava requisições bloqueantes desnecessárias.
 
-Substituí por SVGs inline diretamente nos componentes do Astro. O Astro compila o SVG no build e não gera requisições extras de rede.
+Substituí por SVGs inline diretamente nos componentes do Astro. O Astro compila o SVG no build e não gera requisiçõestextras de rede.
 
 ---
 
