@@ -3,7 +3,7 @@ title: "Otimizando RAG e Redução de Tokens com Markdown Chunking e Cache no .N
 subtitle: "Como reduzi o consumo de tokens sem precisar de um vector db"
 description: "Conversão de HTML para Markdown, chunking estrutural por cabeçalhos e cache com sliding expiration."
 date: 2026-10-03
-updated: 2026-10-07
+updated: 2026-10-16
 tags: [dotnet, csharp, ai, clean-architecture, performance, nuvemshop]
 category: tech
 author: "Diego Fernandes"
@@ -24,10 +24,10 @@ Hoje, reestruturei essa funcionalidade na minha API para resolver o problema de 
 
 Seguindo os princípios de **Clean Architecture e DDD**:
 - O formato HTML é um detalhe de entrega específico da API externa da Nuvemshop.
-- A camada de **Application** não deve saber que a política veio em HTML, JSON ou texto puro.
-- Portanto, a library de conversão (`ReverseMarkdown`) foi isolaad na camada de **Infra**, entregando para a aplicação um modelo limpo em Markdown.
+- A camada de **Application** não deve saber se a política veio em HTML, JSON ou texto puro.
+- Portanto, a biblioteca de conversão (ReverseMarkdown) foi isolada na camada de **Infra**, entregando para a aplicação um modelo limpo em Markdown.
 
-```csharp
+`csharp
 // Infrastructure: Conversão isolada no Adapter externo
 public async Task<StorePolicies> GetPoliciesAsync(string storeId, CancellationToken ct = default)
 {
@@ -40,19 +40,20 @@ public async Task<StorePolicies> GetPoliciesAsync(string storeId, CancellationTo
         ShippingPolicy: converter.Convert(rawHtmlPolicies.ShippingHtml)
     );
 }
-```
+`
 
 ---
 
-## Chunking Estrutural sem Vector DB
+## Chunking Estrutural sem Banco Vetorial
 
-Adicionar um vector db (PgVector, Qdrant, Pinecone) para fazer RAG agora adiciona complexidade operacional e custo desnecessários pra esse projeto. Meu único cliente aqui é o Ecommerce da minha esposa 😁
+Adicionar um banco vetorial (PgVector, Qdrant, Pinecone) para fazer RAG neste estágio adicionaria complexidade operacional e custo desnecessários para o meu projeto.
 
-Implementei uma abordagem que julguei eficiente o bastante para o momento:
+Implementei uma abordagem baseada em regras léxicas e hierarquia estrutural:
 
-1. **Quebra por Cabeçalhos**: O serviço de politica divide o Markdown em seções baseadas em títulos (`#`, `##`, `###`).
-2. **Scoring Ponderado**: O termo buscado pelo usuário pontua mais alto se coincidir com o título da seção (peso 3x) do que com o corpo do texto (peso 1x).
-3. **Retorno Enxuto**: Apenas a seção relevante com limite de caracteres é retornada para o agente.
+1. **Quebra por Cabeçalhos**: O PolicyChunkingService divide o Markdown em seções baseadas em títulos (#, ##, ###).
+2. **Normalização em Português**: O PortugueseTextNormalizer remove acentuações e pontuações, permitindo matching flexível em português.
+3. **Scoring Ponderado**: O termo pesquisado pontua mais alto se coincidir com o título da seção (peso 3x) do que com o corpo do texto (peso 1x).
+4. **Retorno Enxuto**: Apenas a seção relevante com limite de caracteres é retornada para o agente.
 
 ---
 
@@ -60,9 +61,9 @@ Implementei uma abordagem que julguei eficiente o bastante para o momento:
 
 Como estamos falando de uma aplicação stateless, não tem como saber com precisão o segundo exato em que o comprador fecha a aba do chat na loja.
 
-Para evitar chamadas HTTP repetitivas à API da Nuvemshop a cada mensagem do mesmo comprador, utilizei o `IMemoryCache` do .NET com **Sliding Expiration**:
+Para evitar chamadas HTTP repetitivas à API da Nuvemshop a cada mensagem do mesmo comprador, utilizei o IMemoryCache do .NET com **Sliding Expiration**:
 
-```csharp
+`csharp
 public async Task<string> SearchPolicyAsync(string storeId, string query, CancellationToken ct = default)
 {
     var cacheKey = $"policies_{storeId}";
@@ -78,10 +79,9 @@ public async Task<string> SearchPolicyAsync(string storeId, string query, Cancel
         return await _nuvemshopClient.GetPoliciesAsync(storeId, ct);
     });
 
-    return ChunkAndScorePolicy(policies, query);
+    return _searchEngine.Search(policies, query);
 }
-```
-*nao ficou exatamente assim mas da pra entender a ideia.*
+`
 
 Essa estratégia garante que:
 * Enquanto houver compradores conversando na mesma loja, as políticas permanecem na memória.
